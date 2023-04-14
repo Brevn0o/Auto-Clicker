@@ -3,6 +3,7 @@ import threading
 import time
 
 import pyautogui as pg
+from typing import Literal
 
 
 class Clicker:
@@ -15,8 +16,8 @@ class Clicker:
             'triple': 3
         }
 
-    def click(self, x: int = None, y: int = None, duration: int = 0, button='left', click_type='single',
-              anti_detect=0):
+    def click(self, x: int = None, y: int = None, duration: float = 0, button: str = 'left',
+              click_type: str = 'single', anti_detect: int = 0):
         if x is not None and y is not None:
             x = x + random.randrange(-anti_detect, anti_detect)
             y = y + random.randrange(-anti_detect, anti_detect)
@@ -31,14 +32,13 @@ class Clicker:
                 time.sleep(duration)
                 pg._pyautogui_win._mouseUp(x=x, y=y, button=button)
 
-    def start_clicking(self, interval, times: int = None, duration: int = 0, button='left', click_type='single',
-                       loc_x: int = None, loc_y: int = None, anti_detect=0, interval_randomization=0):
+    def start(self, interval: int, times: int = -1, duration: float = 0, button: str = 'left',
+              click_type: str = 'single', x: int = None, y: int = None, anti_detect: int = 0,
+              interval_randomization: int = 0):
         self.clicking = True
-        if times is None:
-            times = -1
         count = 0
         while self.clicking:
-            self.click(loc_x, loc_y, duration, button, click_type, anti_detect)
+            self.click(x, y, duration, button, click_type, anti_detect)
             randomized_interval = 0
             if interval_randomization > 0:
                 randomized_interval = random.randrange(-interval_randomization, interval_randomization)

@@ -9,21 +9,23 @@ import time
 
 import keyboard
 from PyQt6.QtGui import QIntValidator
-# from pynput.mouse import Listener
-from pynput.keyboard import Key, Listener
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from classes import pick_window_class
 from classes.clicker import Clicker
+from classes.read_hotkey import ReadHotkey
 
 
-class SetHotkey(QThread):
-    finished = pyqtSignal(str)
-
-    def run(self):
-        hotkey = keyboard.read_hotkey(suppress=False)
-        self.finished.emit(hotkey)
+# class PickLocation(QThread):
+#     finished = pyqtSignal(list)
+#
+#     def run(self):
+#         print('Hel')
+#         pick_window = pick_window_class.PickWindow()
+#         pick_window.start_program()
+#         print('ttt')
+#         self.finished.emit([121, 890])
 
 
 class Ui_Dialog(object):
@@ -33,6 +35,8 @@ class Ui_Dialog(object):
         self.win_width = 511
         self.win_height = 433
         self.clicker_is_running = False
+        self.icon_path = 'bin/icon.ico'
+        self.window_name = 'Auto-Clicker'
         self.options = {
             'interval_millisec': 100,
             'interval_sec': 0,
@@ -54,34 +58,33 @@ class Ui_Dialog(object):
         self.convert_interval()
         self.hotkey_label_font = "<html><head/><body><p><span style=\" " \
                                  "font-size:14pt;\">{}</span></p></body></html>"
-        self.anti_detect_tool_tip = 'The mouse will click in random places around the set location'
-        self.duration_tool_tip = 'How long the mouse will be held in the "Pressed state" (In milliseconds)'
+        self.tool_tips = {
+            'anti_detect': 'The mouse will click in random places around the set location',
+            'duration': 'How long the mouse will be held in the "Pressed state" (In seconds)'
+        }
 
-    @staticmethod
-    def get_hotkey():
-        """Get hotkey from keyboard"""
-        return
-
-    def switch_group_boxes(self, enable=True):
+    def switch_group_boxes(self, enable: bool = True):
+        """Disable all group-boxes in Dialog"""
         for widget in self.Dialog.findChildren(QtWidgets.QGroupBox):
             widget.setEnabled(enable)
 
     def convert_interval(self):
         """Convert interval to milliseconds"""
         self.options['interval'] = (self.options['interval_millisec'] +
-                         self.options['interval_sec'] * 1000 +
-                         self.options['interval_min'] * 60 * 1000 +
-                         self.options['interval_hours'] * 60 * 60 * 1000) / 1000
+                                    self.options['interval_sec'] * 1000 +
+                                    self.options['interval_min'] * 60 * 1000 +
+                                    self.options['interval_hours'] * 60 * 60 * 1000) / 1000
 
     def on_hotkey(self):
+        """Fired when the hotkey is pressed"""
         if self.clicker_is_running:
             self.on_stop_btn_clicked()
         else:
             self.on_start_btn_clicked()
 
-    def auto_click(self):
-        print(self.options['click_repeat'] if self.options['click_repeat_enabled'] else None)
-        self.clicker.start_clicking(
+    def start_clicker(self):
+        """Function to put all variables in the clicker and run it"""
+        self.clicker.start(
             self.options['interval'],
             self.options['click_repeat'] if self.options['click_repeat_enabled'] else None,
             self.options['duration'],
@@ -92,11 +95,13 @@ class Ui_Dialog(object):
             self.options['anti_detect'] if self.options['anti_detect_enabled'] else 0,
             self.options['random_interval'] if self.options['random_interval_enabled'] else 0
         )
-        # while self.clicker_is_running:
-        #     time.sleep(self.options['interval'])
-        #     print(self.options['interval'])
 
     def on_start_btn_clicked(self):
+        """
+        Fired when the start button is clicked
+        Takes all values from all inputs and starts auto-clicker
+        Disables all group boxes, disables start button and enables stop button
+        """
         self.clicker_is_running = True
         self.switch_group_boxes(False)
         self.start_btn.setEnabled(False)
@@ -112,7 +117,6 @@ class Ui_Dialog(object):
         self.options['duration'] = round(self.duration_input.value(), 2)
         self.options['mouse_button'] = self.mouse_button_choice.currentText()
         self.options['click_type'] = self.click_type_choice.currentText()
-        print(self.repeat_n_times_input.isEnabled())
         self.options['click_repeat_enabled'] = self.repeat_n_times_radio_button.isChecked()
         self.options['click_repeat'] = self.repeat_n_times_input.value()
         self.options['cursor_position_enabled'] = self.custom_location_radio_button.isChecked()
@@ -120,10 +124,13 @@ class Ui_Dialog(object):
         self.options['cursor_position'][1] = int(self.custom_y_input.text())
         self.options['random_interval_enabled'] = self.random_interval_check_box.isChecked()
         self.options['random_interval'] = self.random_interval_input.value()
-        print(self.options)
-        threading.Thread(target=self.auto_click).start()
+        threading.Thread(target=self.start_clicker).start()
 
     def on_stop_btn_clicked(self):
+        """
+        Fired when the stop button is clicked
+        It enables all group boxes, disables stop button and enables start button
+        """
         self.clicker_is_running = False
         self.switch_group_boxes(True)
         self.start_btn.setEnabled(True)
@@ -132,12 +139,14 @@ class Ui_Dialog(object):
         # self.Dialog.showNormal()
 
     def on_random_interval_check_box_clicked(self):
+        """Fired when the random interval check box is clicked"""
         if self.random_interval_check_box.isChecked():
             self.random_interval_input.setEnabled(True)
         else:
             self.random_interval_input.setEnabled(False)
 
-    def on_current_location_radio_button_clicked(self):
+    def on_current_location_radio_btn_clicked(self):
+        """Fired when the current location radio button is clicked"""
         if not self.custom_location_radio_button.isChecked():
             self.anti_detect_input.setEnabled(False)
             self.custom_y_label.setEnabled(False)
@@ -146,17 +155,22 @@ class Ui_Dialog(object):
             self.custom_x_input.setEnabled(False)
             self.pick_loc_btn.setEnabled(False)
 
-    def on_custom_location_radio_button_clicked(self):
+    def on_custom_location_radio_btn_clicked(self):
         # ToDO: Pick Location Button is not ready yet
+        """Fired when custom location radio button is clicked"""
         if self.custom_location_radio_button.isChecked():
             self.anti_detect_input.setEnabled(True)
             self.custom_y_label.setEnabled(True)
             self.custom_x_label.setEnabled(True)
             self.custom_y_input.setEnabled(True)
             self.custom_x_input.setEnabled(True)
-            # self.pick_loc_btn.setEnabled(True)
+            # self.pick_loc_btn.setEnabled(True)  # temporary disabled
 
     def on_set_default_hotkey_btn_clicked(self):
+        """
+        Fired set the default hotkey button is clicked
+        Changes the current hotkey to default
+        """
         keyboard.remove_hotkey(self.options['hotkey'])
         self.options['hotkey'] = self.default_hotkey
         self.hotkey_label.setText(self.hotkey_label_font.format(self.options['hotkey'].upper()))
@@ -165,14 +179,19 @@ class Ui_Dialog(object):
         keyboard.add_hotkey(self.options['hotkey'], self.on_hotkey, suppress=True)
 
     def on_set_hotkey_btn_clicked(self):
+        """
+        Fired when the set hotkey button is clicked
+        Takes a new hotkey from the keyboard and disables the dialog until it gets a new hotkey
+        """
         self.Dialog.setDisabled(True)
         self.hotkey_label.setText('ENTER HOTKEY')
         keyboard.remove_hotkey(self.options['hotkey'])
-        self.set_hotkey = SetHotkey()
+        self.set_hotkey = ReadHotkey()
         self.set_hotkey.finished.connect(self.setting_hotkey_finished)
         self.set_hotkey.start()
 
     def setting_hotkey_finished(self, hotkey):
+        """Fired when setting hotkey is finished"""
         self.Dialog.setDisabled(False)
         self.options['hotkey'] = hotkey
         self.hotkey_label.setText(self.hotkey_label_font.format(self.options['hotkey'].upper()))
@@ -181,25 +200,25 @@ class Ui_Dialog(object):
         keyboard.add_hotkey(self.options['hotkey'], self.on_hotkey, suppress=True)
 
     def on_until_stopped_radio_button_clicked(self):
+        """Fired when the until stopped radio button is clicked"""
         if not self.repeat_n_times_radio_button.isChecked():
             self.repeat_n_times_input.setEnabled(False)
 
     def on_repeat_n_times_radio_button_clicked(self):
+        """Fired when the "repeat n times radio button" is clicked"""
         if self.repeat_n_times_radio_button.isChecked():
             self.repeat_n_times_input.setEnabled(True)
 
     def on_pick_loc_btn_clicked(self):
-        # Dialog.showMinimized()
-        # time.sleep(1)
-        # Dialog.setFixedHeight(1)
-        # time.sleep(1)
-        # Dialog.setFixedHeight(self.win_height)
-        # pick_window = pick_window_class.PickWindow()
-        # threading.Thread(target=pick_window.start_program).start()
-        # threading.Thread(target=self.listen).start()
-        # print(54)
-        # print(dir(t))
+        # ToDO
         pass
+        # self.pick_loc = pick_window_class.PickLocation()
+        # self.pick_loc.finished.connect(self.picking_location_finished)
+        # self.pick_loc.start()
+
+    def picking_location_finished(self, coordinates):
+        # ToDo
+        print(coordinates)
 
     def setupUi(self, Dialog):
         self.Dialog = Dialog
@@ -208,7 +227,8 @@ class Ui_Dialog(object):
         Dialog.setWindowModality(QtCore.Qt.WindowModality.NonModal)
         Dialog.setEnabled(True)
         Dialog.resize(self.win_width, self.win_height)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed,
+                                           QtWidgets.QSizePolicy.Policy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(Dialog.sizePolicy().hasHeightForWidth())
@@ -218,7 +238,8 @@ class Ui_Dialog(object):
         Dialog.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.ArrowCursor))
         Dialog.setMouseTracking(False)
         Dialog.setWindowFlags(
-            QtCore.Qt.WindowType.WindowMinimizeButtonHint | QtCore.Qt.WindowType.WindowCloseButtonHint)
+            QtCore.Qt.WindowType.WindowMinimizeButtonHint |
+            QtCore.Qt.WindowType.WindowCloseButtonHint)
         Dialog.setStyleSheet("QGroupBox {\n"
                              "    border: 1px solid gray;\n"
                              "    border-radius: 10px;\n"
@@ -396,11 +417,11 @@ class Ui_Dialog(object):
         self.duration_label = QtWidgets.QLabel(parent=self.click_options_group_box)
         self.duration_label.setGeometry(QtCore.QRect(210, 30, 61, 16))
         self.duration_label.setObjectName("duration_label")
-        self.duration_label.setToolTip(self.duration_tool_tip)
+        self.duration_label.setToolTip(self.tool_tips['duration'])
         self.anti_detect_label = QtWidgets.QLabel(parent=self.click_options_group_box)
         self.anti_detect_label.setGeometry(QtCore.QRect(210, 60, 71, 16))
         self.anti_detect_label.setObjectName("anti_detect_label")
-        self.anti_detect_label.setToolTip(self.anti_detect_tool_tip)
+        self.anti_detect_label.setToolTip(self.tool_tips['anti_detect'])
         self.anti_detect_input = QtWidgets.QSpinBox(parent=self.click_options_group_box)
         self.anti_detect_input.setEnabled(False)
         self.anti_detect_input.setGeometry(QtCore.QRect(289, 58, 42, 22))
@@ -417,11 +438,11 @@ class Ui_Dialog(object):
         self.repeat_n_times_input.setGeometry(QtCore.QRect(85, 60, 41, 20))
         self.repeat_n_times_input.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
         self.repeat_n_times_input.setStyleSheet("")
-        self.repeat_n_times_input.setValue(0)
         self.repeat_n_times_input.setButtonSymbols(QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.repeat_n_times_input.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.repeat_n_times_input.setObjectName("repeat_interval_input")
         self.repeat_n_times_input.setValue(self.options['click_repeat'])
+        self.repeat_n_times_input.setMaximum(99999)
         self.repeat_n_times_radio_button = QtWidgets.QRadioButton(parent=self.click_repeat_group_box)
         self.repeat_n_times_radio_button.setGeometry(QtCore.QRect(12, 60, 72, 20))
         self.repeat_n_times_radio_button.setObjectName("repeat_n_times_radio_button")
@@ -452,7 +473,9 @@ class Ui_Dialog(object):
         self.cursor_position_group_box.setGeometry(QtCore.QRect(260, 180, 241, 90))
         self.cursor_position_group_box.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.cursor_position_group_box.setAlignment(
-            QtCore.Qt.AlignmentFlag.AlignLeading | QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+            QtCore.Qt.AlignmentFlag.AlignLeading |
+            QtCore.Qt.AlignmentFlag.AlignLeft |
+            QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.cursor_position_group_box.setObjectName("cursor_position_group_box")
         self.current_location_radio_button = QtWidgets.QRadioButton(parent=self.cursor_position_group_box)
         self.current_location_radio_button.setEnabled(True)
@@ -521,7 +544,9 @@ class Ui_Dialog(object):
         sizePolicy.setHeightForWidth(self.custom_y_label.sizePolicy().hasHeightForWidth())
         self.custom_y_label.setSizePolicy(sizePolicy)
         self.custom_y_label.setAlignment(
-            QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTrailing | QtCore.Qt.AlignmentFlag.AlignVCenter)
+            QtCore.Qt.AlignmentFlag.AlignRight |
+            QtCore.Qt.AlignmentFlag.AlignTrailing |
+            QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.custom_y_label.setObjectName("custom_y_label")
         self.custom_x_label = QtWidgets.QLabel(parent=self.cursor_position_group_box)
         self.custom_x_label.setEnabled(False)
@@ -533,7 +558,9 @@ class Ui_Dialog(object):
         sizePolicy.setHeightForWidth(self.custom_x_label.sizePolicy().hasHeightForWidth())
         self.custom_x_label.setSizePolicy(sizePolicy)
         self.custom_x_label.setAlignment(
-            QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTrailing | QtCore.Qt.AlignmentFlag.AlignVCenter)
+            QtCore.Qt.AlignmentFlag.AlignRight |
+            QtCore.Qt.AlignmentFlag.AlignTrailing |
+            QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.custom_x_label.setObjectName("custom_x_label")
         self.hotkey_group_box = QtWidgets.QGroupBox(parent=Dialog)
         self.hotkey_group_box.setGeometry(QtCore.QRect(260, 280, 241, 90))
@@ -588,8 +615,8 @@ class Ui_Dialog(object):
         self.start_btn.clicked.connect(self.on_start_btn_clicked)
         self.stop_btn.clicked.connect(self.on_stop_btn_clicked)
         self.random_interval_check_box.clicked.connect(self.on_random_interval_check_box_clicked)
-        self.current_location_radio_button.clicked.connect(self.on_current_location_radio_button_clicked)
-        self.custom_location_radio_button.clicked.connect(self.on_custom_location_radio_button_clicked)
+        self.current_location_radio_button.clicked.connect(self.on_current_location_radio_btn_clicked)
+        self.custom_location_radio_button.clicked.connect(self.on_custom_location_radio_btn_clicked)
         self.set_default_hotkey_btn.clicked.connect(self.on_set_default_hotkey_btn_clicked)
         self.repeat_n_times_radio_button.clicked.connect(self.on_repeat_n_times_radio_button_clicked)
         self.until_stopped_radio_button.clicked.connect(self.on_until_stopped_radio_button_clicked)
@@ -599,7 +626,8 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Clicker"))
+        Dialog.setWindowTitle(_translate("Dialog", self.window_name))
+        Dialog.setWindowIcon(QtGui.QIcon(self.icon_path))
         self.click_interval_group_box.setTitle(_translate("Dialog", "Click Interval"))
         self.sec_interval_label.setText(_translate("Dialog", "Seconds"))
         self.min_interval_label.setText(_translate("Dialog", "Minutes"))
